@@ -127,7 +127,7 @@ function! NewContestProblem()
     " 拼接文件名：ID + 题号 + .cpp
     let l:filename = l:contest_id . l:problem_letter . ".cpp"
     " 打开文件
-    execute "edit" . l:filename
+    execute "edit " . l:filename
 endfunction
 " 映射快捷键：Leader + n (New Problem)
 nnoremap <Leader>n :call NewContestProblem()<CR>
