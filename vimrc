@@ -24,7 +24,7 @@ set smartindent             " 智能缩进
 " 自动展开成代码框并缩进
 inoremap {<CR> {<CR>}<Esc>O
 " 将Normal模式的Esc映射为取消高亮
-nnoremap <Esc> :noh<CR><Esc>
+nnoremap <silent> <Esc> :noh<CR><Esc>
 " 设置括号补全
 inoremap () ()<Left>
 inoremap "" ""<Left>
@@ -61,6 +61,8 @@ nnoremap <Leader>h :noh<CR>
 " 映射快捷键：Leader + n (New Problem)
 " 实现在下面“自动关联目录名，新建题目文件”
 
+" 映射快捷键：Leader + t (switch cin>>t;)
+" 实现在下面“切换 cin>>t; 注释状态”
 
 " ====================================================
 " 自动化功能：F5 一键编译运行 
@@ -115,6 +117,10 @@ function! NewContestProblem()
     " 提取当前工作目录名称作为比赛ID
     " getcwd() 获取当前路径，':t' (tail) 提取路径最后一部分
     let l:contest_id = fnamemodify(getcwd(), ':t')
+    if l:contest_id == "CppFiles"
+        echo "\n[Warning] Not in contest folder."
+        return
+    endif
     " 交互式输入题号 （A/B/C）
     let l:problem_letter = input("Problem Letter: ")
     " 校验输入
@@ -131,3 +137,25 @@ function! NewContestProblem()
 endfunction
 " 映射快捷键：Leader + n (New Problem)
 nnoremap <Leader>n :call NewContestProblem()<CR>
+
+" ====================================================
+" 切换 cin>>t; 注释状态
+" ====================================================
+function! ToggleCinComment()
+    " 存当前光标位置
+    let l:pos = getpos('.')
+    " 找到相关行
+    if search('cin>>t;','W')
+        " 判断是否以 '//' 开头，忽略开头空格
+        " =~ 是正则匹配
+        if getline('.') =~ '^\s*//'
+            normal! ^2x
+        else
+            normal! I//
+        endif
+    endif
+    " 恢复光标位置
+    call setpos('.',l:pos)
+endfunction
+" 映射，<silent> 使命令行不显示搜索过程
+nnoremap <silent> <Leader>t :call ToggleCinComment()<CR>
