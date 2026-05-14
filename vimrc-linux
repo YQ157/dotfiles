@@ -1,0 +1,43 @@
+" ====================================================
+" 基础显示设置
+" ====================================================
+syntax on
+set number
+set cursorline
+set ruler
+set wrap
+set showmatch
+set encoding=utf-8
+
+" ====================================================
+" 缩进与格式
+" ====================================================
+set tabstop=4
+set shiftwidth=4
+set expandtab
+set autoindent
+set smartindent
+
+" ====================================================
+" 搜索设置
+" ====================================================
+set hlsearch
+set incsearch
+set ignorecase
+set smartcase
+
+" ====================================================
+" Leader 配置
+" ====================================================
+let mapleader = "\<Space>"
+
+nnoremap <Leader>q :q<CR>
+nnoremap <Leader>w :w<CR>
+nnoremap <Leader>h :noh<CR>
+nnoremap <silent> <Esc> :noh<CR><Esc>
+
+" ====================================================
+" 插入模式快捷键
+" ====================================================
+inoremap jk <Esc>
+inoremap kj <Esc>

@@ -1,5 +1,21 @@
-# macOS 系统文件
+# macOS
 .DS_Store
+.AppleDouble
+.LSOverride
 
-# Windows 系统文件
+# Linux
+*~
+
+# Windows
 Thumbs.db
+ehthumbs.db
+
+# IDE / Editor
+.claude/
+.codex/
+.vscode/
+.idea/
+
+# Backup files
+*.backup
+*.bak

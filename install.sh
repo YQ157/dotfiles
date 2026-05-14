@@ -53,15 +53,23 @@ link_file() {
 
 # ==============================================================================
 # 配置清单 (Manifest)
-#在此处添加需要部署的文件
+# 在此处添加需要部署的文件
 # ==============================================================================
 
 echo "---------------------------------------------------"
 echo "🚀 Starting installation..."
 echo "---------------------------------------------------"
 
+# 检测操作系统，选择合适的 vimrc
+case "$(uname -s)" in
+    Darwin*)  VIMRC_SRC="vimrc" ;;
+    Linux*)   VIMRC_SRC="vimrc-linux" ;;
+    *)        VIMRC_SRC="vimrc" ;;
+esac
+echo -e "${FMT_BLUE}[INFO] Detected OS: $(uname -s), using $VIMRC_SRC${FMT_RESET}"
+
 # Vim 配置
-link_file "vimrc" ".vimrc"
+link_file "$VIMRC_SRC" ".vimrc"
 
 # [示例] Git 配置 (取消注释以启用)
 # link_file "gitconfig" ".gitconfig"
