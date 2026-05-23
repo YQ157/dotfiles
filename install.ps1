@@ -50,6 +50,42 @@ function New-SymLink {
 }
 
 # ==============================================================================
+# 函数: Add-ProfileSource
+# 向 PowerShell Profile 追加 dot-source 行
+# 参数: $SourceLine = 要追加的行
+# ==============================================================================
+function Add-ProfileSource {
+    param (
+        [string]$SourceLine
+    )
+
+    $ProfileDir = Split-Path $PROFILE -Parent
+    $Marker = "# Added by dotfiles (source shell functions)"
+
+    # 确保 Profile 目录存在
+    if (-not (Test-Path $ProfileDir)) {
+        Write-Host "[INFO] Creating profile directory: $ProfileDir" -ForegroundColor Yellow
+        New-Item -ItemType Directory -Path $ProfileDir -Force | Out-Null
+    }
+
+    # 确保 Profile 文件存在
+    if (-not (Test-Path $PROFILE)) {
+        Write-Host "[INFO] Creating profile: $PROFILE" -ForegroundColor Yellow
+        New-Item -ItemType File -Path $PROFILE -Force | Out-Null
+    }
+
+    # 检查 dot-source 行是否已存在
+    if (Select-String -Path $PROFILE -Pattern [regex]::Escape($SourceLine) -SimpleMatch -ErrorAction SilentlyContinue) {
+        Write-Host "[SKIP] Dot-source line already in profile" -ForegroundColor Green
+        return
+    }
+
+    # 追加标记注释 + dot-source 行
+    Add-Content -Path $PROFILE -Value "`n$Marker`n$SourceLine"
+    Write-Host "[SUCCESS] Added dot-source line to profile" -ForegroundColor Green
+}
+
+# ==============================================================================
 # 配置清单 (Manifest)
 # ==============================================================================
 
@@ -57,6 +93,10 @@ Write-Host "`n🚀 Starting installation...`n"
 
 # Vim 配置 (Windows 下通常为 _vimrc)
 New-SymLink "vimrc" "_vimrc"
+
+# Shell 函数
+New-SymLink "shell_functions.ps1" ".dotfiles_functions.ps1"
+Add-ProfileSource '. "$HOME/.dotfiles_functions.ps1"'
 
 # [示例] Git 配置
 # New-SymLink "gitconfig" ".gitconfig"

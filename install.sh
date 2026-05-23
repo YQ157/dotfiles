@@ -52,6 +52,34 @@ link_file() {
 }
 
 # ==============================================================================
+# 函数: inject_source_line
+# 向 rc 文件追加 source 行（带标记注释，便于卸载识别）
+# 参数: $1 = rc 文件相对于 $HOME 的路径 (如 ".zshrc")
+#       $2 = 要追加的 source 行
+# ==============================================================================
+inject_source_line() {
+    local rc_file="$HOME/$1"
+    local source_line="$2"
+    local marker="# Added by dotfiles (source shell functions)"
+
+    # 如果 rc 文件不存在，创建它
+    if [ ! -f "$rc_file" ]; then
+        echo -e "${FMT_YELLOW}[INFO] $1 not found, creating...${FMT_RESET}"
+        touch "$rc_file"
+    fi
+
+    # 检查 source 行是否已经存在
+    if grep -qF "$source_line" "$rc_file" 2>/dev/null; then
+        echo -e "${FMT_GREEN}[SKIP] Source line already in $1${FMT_RESET}"
+        return
+    fi
+
+    # 追加标记注释 + source 行
+    printf '\n%s\n%s\n' "$marker" "$source_line" >> "$rc_file"
+    echo -e "${FMT_GREEN}[SUCCESS] Added source line to $1${FMT_RESET}"
+}
+
+# ==============================================================================
 # 配置清单 (Manifest)
 # 在此处添加需要部署的文件
 # ==============================================================================
@@ -70,6 +98,19 @@ echo -e "${FMT_BLUE}[INFO] Detected OS: $(uname -s), using $VIMRC_SRC${FMT_RESET
 
 # Vim 配置
 link_file "$VIMRC_SRC" ".vimrc"
+
+# Shell 函数
+link_file "shell_functions.sh" ".dotfiles_functions.sh"
+
+# 将 source 行注入 rc 文件
+case "$(uname -s)" in
+    Darwin*)
+        inject_source_line ".zshrc" '[ -f ~/.dotfiles_functions.sh ] && source ~/.dotfiles_functions.sh'
+        ;;
+    Linux*)
+        inject_source_line ".bashrc" '[ -f ~/.dotfiles_functions.sh ] && source ~/.dotfiles_functions.sh'
+        ;;
+esac
 
 # [示例] Git 配置 (取消注释以启用)
 # link_file "gitconfig" ".gitconfig"
