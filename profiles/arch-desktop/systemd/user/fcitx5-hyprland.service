@@ -1,0 +1,12 @@
+[Unit]
+Description=Fcitx 5 input method for Hyprland
+PartOf=graphical-session.target
+After=graphical-session-pre.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/fcitx5
+Restart=on-failure
+
+[Install]
+WantedBy=graphical-session.target

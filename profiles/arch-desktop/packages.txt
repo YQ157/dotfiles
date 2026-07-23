@@ -1,0 +1,29 @@
+# Documentation-only package manifest; install.sh does not install packages.
+# Core desktop
+caelestia-shell
+caelestia-cli
+hyprland
+foot
+fish
+
+# Daily applications
+firefox
+visual-studio-code-bin
+thunar
+clash-verge-rev-bin
+
+# Session integration
+fcitx5
+fcitx5-configtool
+fcitx5-gtk
+fcitx5-qt
+hyprpolkitagent
+gnome-keyring
+libsecret
+
+# CLI experience used by Caelestia's Fish defaults
+starship
+direnv
+zoxide
+eza
+lazygit

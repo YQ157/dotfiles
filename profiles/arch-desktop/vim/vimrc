@@ -1,0 +1,9 @@
+" Arch desktop Vim entry point.
+let s:profile_dir = fnamemodify(resolve(expand('<sfile>:p')), ':h')
+execute 'source ' . fnameescape(fnamemodify(s:profile_dir . '/../../../common/vim/vimrc', ':p'))
+
+set termguicolors
+set background=dark
+colorscheme habamax
+set mouse=a
+set clipboard=unnamedplus

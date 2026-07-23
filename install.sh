@@ -1,122 +1,162 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -euo pipefail
 
-# ==============================================================================
-# Dotfiles Installation Script
-# 用于自动化部署配置文件到 macOS/Linux 系统
-# ==============================================================================
+DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROFILE=""
+HOST_NAME=""
+DRY_RUN=false
 
-set -e # 遇到错误立即退出
+usage() {
+    cat <<'EOF'
+Usage:
+  ./install.sh --profile arch-desktop --host legion [--dry-run]
+  ./install.sh --profile linux-server [--dry-run]
+  ./install.sh --profile macos [--dry-run]
 
-# 获取脚本所在目录的绝对路径 (作为软链接的源路径)
-DOTFILES_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+Profiles are explicit by design; a graphical workstation is never treated as
+a generic Linux server. Windows uses install.ps1.
+EOF
+}
 
-# 定义终端输出颜色
-FMT_RED="\033[0;31m"
-FMT_GREEN="\033[0;32m"
-FMT_YELLOW="\033[0;33m"
-FMT_BLUE="\033[0;34m"
-FMT_RESET="\033[0m"
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --profile) PROFILE="${2:-}"; shift 2 ;;
+        --host) HOST_NAME="${2:-}"; shift 2 ;;
+        --dry-run) DRY_RUN=true; shift ;;
+        -h|--help) usage; exit 0 ;;
+        *) echo "Unknown argument: $1" >&2; usage >&2; exit 2 ;;
+    esac
+done
 
-echo -e "${FMT_BLUE}[INFO] Dotfiles directory: $DOTFILES_DIR${FMT_RESET}"
+case "$PROFILE" in
+    arch-desktop)
+        [ "$(uname -s)" = Linux ] || {
+            echo "arch-desktop requires Linux" >&2
+            exit 1
+        }
+        [ -n "$HOST_NAME" ] || {
+            echo "arch-desktop requires --host (currently: legion)" >&2
+            exit 1
+        }
+        [ -d "$DOTFILES_DIR/hosts/$HOST_NAME" ] || {
+            echo "Unknown host: $HOST_NAME" >&2
+            exit 1
+        }
+        ;;
+    linux-server)
+        [ "$(uname -s)" = Linux ] || {
+            echo "linux-server requires Linux" >&2
+            exit 1
+        }
+        ;;
+    macos)
+        [ "$(uname -s)" = Darwin ] || {
+            echo "macos requires Darwin" >&2
+            exit 1
+        }
+        ;;
+    "") echo "Missing --profile" >&2; usage >&2; exit 2 ;;
+    *) echo "Unknown profile: $PROFILE" >&2; usage >&2; exit 2 ;;
+esac
 
-# ==============================================================================
-# 函数: link_file
-# 参数: $1 = 仓库中的源文件名 (相对于仓库根目录)
-#       $2 = 系统中的目标路径 (相对于 $HOME)
-# ==============================================================================
+backup_path() {
+    local target="$1"
+    local stamp backup
+    stamp="$(date +%Y%m%d-%H%M%S)"
+    backup="${target}.backup.${stamp}"
+    while [ -e "$backup" ] || [ -L "$backup" ]; do
+        backup="${backup}.1"
+    done
+    printf '%s\n' "$backup"
+}
+
 link_file() {
     local source_file="$DOTFILES_DIR/$1"
     local target_file="$HOME/$2"
+    local backup
 
-    # 1. 检查源文件是否存在
-    if [ ! -f "$source_file" ]; then
-        echo -e "${FMT_RED}[ERROR] Source file not found: $source_file${FMT_RESET}"
+    [ -f "$source_file" ] || {
+        echo "[ERROR] Missing source: $1" >&2
+        exit 1
+    }
+    if [ -L "$target_file" ] && [ "$(readlink -f "$target_file")" = "$(readlink -f "$source_file")" ]; then
+        echo "[SKIP] $2"
         return
     fi
-
-    # 2. 检查目标是否已经是正确的软链接 (幂等性检查)
-    if [ -L "$target_file" ] && [ "$(readlink "$target_file")" == "$source_file" ]; then
-        echo -e "${FMT_GREEN}[SKIP] Already linked: $2${FMT_RESET}"
-        return
+    echo "[LINK] $2 <- $1"
+    $DRY_RUN && return
+    mkdir -p "$(dirname "$target_file")"
+    if [ -e "$target_file" ] || [ -L "$target_file" ]; then
+        backup="$(backup_path "$target_file")"
+        mv "$target_file" "$backup"
+        echo "       backup: ${backup#$HOME/}"
     fi
-
-    # 3. 如果目标存在 (文件或旧链接)，则备份
-    if [ -f "$target_file" ] || [ -L "$target_file" ]; then
-        echo -e "${FMT_YELLOW}[BACKUP] Backing up existing $2 to $2.backup${FMT_RESET}"
-        mv "$target_file" "${target_file}.backup"
-    fi
-
-    # 4. 建立软链接
-    ln -sf "$source_file" "$target_file"
-    echo -e "${FMT_GREEN}[SUCCESS] Linked $1 -> $2${FMT_RESET}"
+    ln -s "$source_file" "$target_file"
 }
 
-# ==============================================================================
-# 函数: inject_source_line
-# 向 rc 文件追加 source 行（带标记注释，便于卸载识别）
-# 参数: $1 = rc 文件相对于 $HOME 的路径 (如 ".zshrc")
-#       $2 = 要追加的 source 行
-# ==============================================================================
 inject_source_line() {
     local rc_file="$HOME/$1"
-    local source_line="$2"
-    local marker="# Added by dotfiles (source shell functions)"
-
-    # 如果 rc 文件不存在，创建它
-    if [ ! -f "$rc_file" ]; then
-        echo -e "${FMT_YELLOW}[INFO] $1 not found, creating...${FMT_RESET}"
-        touch "$rc_file"
-    fi
-
-    # 检查 source 行是否已经存在
-    if grep -qF "$source_line" "$rc_file" 2>/dev/null; then
-        echo -e "${FMT_GREEN}[SKIP] Source line already in $1${FMT_RESET}"
+    local source_line='[ -f ~/.dotfiles_functions.sh ] && source ~/.dotfiles_functions.sh'
+    if [ -f "$rc_file" ] && grep -qF "$source_line" "$rc_file"; then
+        echo "[SKIP] source line in $1"
         return
     fi
-
-    # 追加标记注释 + source 行
-    printf '\n%s\n%s\n' "$marker" "$source_line" >> "$rc_file"
-    echo -e "${FMT_GREEN}[SUCCESS] Added source line to $1${FMT_RESET}"
+    echo "[EDIT] add dotfiles source to $1"
+    $DRY_RUN && return
+    mkdir -p "$(dirname "$rc_file")"
+    touch "$rc_file"
+    printf '\n%s\n%s\n' '# Added by dotfiles (source shell functions)' "$source_line" >>"$rc_file"
 }
 
-# ==============================================================================
-# 配置清单 (Manifest)
-# 在此处添加需要部署的文件
-# ==============================================================================
+enable_user_unit() {
+    local unit="$1"
+    local wants_dir="$HOME/.config/systemd/user/graphical-session.target.wants"
+    echo "[ENABLE] $unit for graphical-session.target"
+    $DRY_RUN && return
+    mkdir -p "$wants_dir"
+    ln -sfn "../$unit" "$wants_dir/$unit"
+}
 
-echo "---------------------------------------------------"
-echo "🚀 Starting installation..."
-echo "---------------------------------------------------"
+echo "Dotfiles profile: $PROFILE${HOST_NAME:+ ($HOST_NAME)}"
 
-# 检测操作系统，选择合适的 vimrc
-case "$(uname -s)" in
-    Darwin*)  VIMRC_SRC="vimrc" ;;
-    Linux*)   VIMRC_SRC="vimrc-linux" ;;
-    *)        VIMRC_SRC="vimrc" ;;
-esac
-echo -e "${FMT_BLUE}[INFO] Detected OS: $(uname -s), using $VIMRC_SRC${FMT_RESET}"
-
-# Vim 配置
-link_file "$VIMRC_SRC" ".vimrc"
-
-# Shell 函数
-link_file "shell_functions.sh" ".dotfiles_functions.sh"
-
-# 将 source 行注入 rc 文件
-case "$(uname -s)" in
-    Darwin*)
-        inject_source_line ".zshrc" '[ -f ~/.dotfiles_functions.sh ] && source ~/.dotfiles_functions.sh'
+case "$PROFILE" in
+    arch-desktop)
+        link_file "profiles/arch-desktop/vim/vimrc" ".vimrc"
+        link_file "profiles/arch-desktop/shell/functions.sh" ".dotfiles_functions.sh"
+        link_file "profiles/arch-desktop/shell/proxy.conf" ".config/dotfiles/proxy.conf"
+        link_file "profiles/arch-desktop/fish/conf.d/dotfiles.fish" ".config/fish/conf.d/dotfiles.fish"
+        link_file "profiles/arch-desktop/foot/foot.ini" ".config/foot/foot.ini"
+        link_file "profiles/arch-desktop/caelestia/hypr-vars.lua" ".config/caelestia/hypr-vars.lua"
+        link_file "profiles/arch-desktop/caelestia/shell.json" ".config/caelestia/shell.json"
+        link_file "profiles/arch-desktop/caelestia/user-config.fish" ".config/caelestia/user-config.fish"
+        link_file "hosts/$HOST_NAME/caelestia/hypr-user.lua" ".config/caelestia/hypr-user.lua"
+        link_file "profiles/arch-desktop/systemd/user/clash-verge.service" ".config/systemd/user/clash-verge.service"
+        link_file "profiles/arch-desktop/systemd/user/fcitx5-hyprland.service" ".config/systemd/user/fcitx5-hyprland.service"
+        link_file "profiles/arch-desktop/systemd/user/hyprland-session.target" ".config/systemd/user/hyprland-session.target"
+        inject_source_line ".bashrc"
+        enable_user_unit "clash-verge.service"
+        enable_user_unit "fcitx5-hyprland.service"
         ;;
-    Linux*)
-        inject_source_line ".bashrc" '[ -f ~/.dotfiles_functions.sh ] && source ~/.dotfiles_functions.sh'
+    linux-server)
+        link_file "profiles/linux-server/vim/vimrc" ".vimrc"
+        link_file "profiles/linux-server/shell/functions.sh" ".dotfiles_functions.sh"
+        inject_source_line ".bashrc"
+        ;;
+    macos)
+        link_file "profiles/macos/vim/vimrc" ".vimrc"
+        link_file "profiles/macos/shell/functions.sh" ".dotfiles_functions.sh"
+        link_file "profiles/macos/shell/proxy.conf" ".config/dotfiles/proxy.conf"
+        inject_source_line ".zshrc"
         ;;
 esac
 
-# [示例] Git 配置 (取消注释以启用)
-# link_file "gitconfig" ".gitconfig"
+if ! $DRY_RUN; then
+    mkdir -p "$HOME/.config/dotfiles"
+    printf '%s\n' "$PROFILE${HOST_NAME:+:$HOST_NAME}" >"$HOME/.config/dotfiles/active-profile"
+fi
 
-# [示例] Zsh 配置
-# link_file "zshrc" ".zshrc"
-
-echo "---------------------------------------------------"
-echo -e "${FMT_GREEN}✅ Installation complete.${FMT_RESET}"
+echo "Done."
+if [ "$PROFILE" = arch-desktop ]; then
+    echo "System-level source files are tracked but not applied automatically."
+    echo "Run profiles/arch-desktop/apply-system.sh when they need to be installed."
+fi

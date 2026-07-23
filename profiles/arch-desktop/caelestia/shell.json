@@ -1,0 +1,32 @@
+{
+    "general": {
+        "idle": {
+            "inhibitWhenAudio": false,
+            "inhibitWhenCharging": false,
+            "lockBeforeSleep": true,
+            "timeouts": [
+                {
+                    "idleAction": "lock",
+                    "inhibitWhenAudio": false,
+                    "inhibitWhenCharging": false,
+                    "respectInhibitors": true,
+                    "timeout": 1800
+                },
+                {
+                    "idleAction": "dpms off",
+                    "respectInhibitors": true,
+                    "returnAction": "dpms on",
+                    "timeout": 3600
+                }
+            ]
+        }
+    },
+    "lock": {
+        "hideNotifs": true
+    },
+    "services": {
+        "useFahrenheit": false,
+        "useFahrenheitPerformance": false,
+        "useTwelveHourClock": false
+    }
+}
