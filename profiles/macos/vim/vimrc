@@ -1,0 +1,5 @@
+" macOS Vim entry point.
+let s:profile_dir = fnamemodify(resolve(expand('<sfile>:p')), ':h')
+execute 'source ' . fnameescape(fnamemodify(s:profile_dir . '/../../../common/vim/vimrc', ':p'))
+
+set clipboard=unnamed

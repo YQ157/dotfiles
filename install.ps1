@@ -26,21 +26,42 @@ function New-SymLink {
 
     $SourcePath = Join-Path $DotfilesDir $Source
     $DestPath = Join-Path $HOME $Dest
+    $DestDir = Split-Path $DestPath -Parent
 
-    # 1. 检查源文件是否存在
     if (-not (Test-Path $SourcePath)) {
-        Write-Host "[ERROR] Source file not found: $Source" -ForegroundColor Red
-        return
+        throw "Source file not found: $Source"
     }
 
-    # 2. 检查目标是否存在
-    if (Test-Path $DestPath) {
-        # 简单策略：如果目标存在，先备份 (重命名)
-        Write-Host "[BACKUP] Backing up existing $Dest..." -ForegroundColor Yellow
-        Move-Item -Path $DestPath -Destination "$DestPath.backup" -Force
+    $Existing = Get-Item -LiteralPath $DestPath -Force -ErrorAction SilentlyContinue
+    if ($Existing -and $Existing.LinkType -eq "SymbolicLink") {
+        $RawTarget = [string]$Existing.Target
+        $CurrentTarget = if ([System.IO.Path]::IsPathRooted($RawTarget)) {
+            [System.IO.Path]::GetFullPath($RawTarget)
+        } else {
+            [System.IO.Path]::GetFullPath((Join-Path $Existing.DirectoryName $RawTarget))
+        }
+        if ($CurrentTarget -eq [System.IO.Path]::GetFullPath($SourcePath)) {
+            Write-Host "[SKIP] Already linked: $Dest" -ForegroundColor Green
+            return
+        }
     }
 
-    # 3. 创建符号链接
+    if (-not (Test-Path $DestDir)) {
+        New-Item -ItemType Directory -Path $DestDir -Force | Out-Null
+    }
+
+    if ($Existing) {
+        $Stamp = Get-Date -Format "yyyyMMdd-HHmmss"
+        $BackupPath = "$DestPath.backup.$Stamp"
+        $Suffix = 1
+        while (Test-Path $BackupPath) {
+            $BackupPath = "$DestPath.backup.$Stamp.$Suffix"
+            $Suffix++
+        }
+        Write-Host "[BACKUP] $Dest -> $(Split-Path $BackupPath -Leaf)" -ForegroundColor Yellow
+        Move-Item -LiteralPath $DestPath -Destination $BackupPath
+    }
+
     try {
         New-Item -ItemType SymbolicLink -Path $DestPath -Target $SourcePath | Out-Null
         Write-Host "[SUCCESS] Linked $Source -> $Dest" -ForegroundColor Green
@@ -75,7 +96,7 @@ function Add-ProfileSource {
     }
 
     # 检查 dot-source 行是否已存在
-    if (Select-String -Path $PROFILE -Pattern [regex]::Escape($SourceLine) -SimpleMatch -ErrorAction SilentlyContinue) {
+    if (Select-String -Path $PROFILE -Pattern $SourceLine -SimpleMatch -Quiet -ErrorAction SilentlyContinue) {
         Write-Host "[SKIP] Dot-source line already in profile" -ForegroundColor Green
         return
     }
@@ -92,10 +113,10 @@ function Add-ProfileSource {
 Write-Host "`n🚀 Starting installation...`n"
 
 # Vim 配置 (Windows 下通常为 _vimrc)
-New-SymLink "vimrc" "_vimrc"
+New-SymLink "profiles\windows\vim\vimrc" "_vimrc"
 
 # Shell 函数
-New-SymLink "shell_functions.ps1" ".dotfiles_functions.ps1"
+New-SymLink "profiles\windows\powershell\shell_functions.ps1" ".dotfiles_functions.ps1"
 Add-ProfileSource '. "$HOME/.dotfiles_functions.ps1"'
 
 # [示例] Git 配置

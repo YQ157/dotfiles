@@ -18,4 +18,12 @@ ehthumbs.db
 
 # Backup files
 *.backup
+*.backup.*
 *.bak
+
+# Secrets and machine-local runtime state
+secrets/
+*.secret
+*.key
+*.token
+hosts/*/private/
